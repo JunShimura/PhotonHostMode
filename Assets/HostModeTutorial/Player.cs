@@ -1,5 +1,6 @@
-﻿using UnityEngine;
-using Fusion;
+﻿using Fusion;
+using TMPro;
+using UnityEngine;
 
 
 public class Player : NetworkBehaviour
@@ -17,6 +18,8 @@ public class Player : NetworkBehaviour
 
     private ChangeDetector _changeDetector;
 
+    private TMP_Text _messages;
+
     public override void Spawned()
     {
         _changeDetector = GetChangeDetector(ChangeDetector.Source.SimulationState);
@@ -26,6 +29,10 @@ public class Player : NetworkBehaviour
         _material = GetComponentInChildren<MeshRenderer>().material;
         _cc = GetComponent<NetworkCharacterController>();
         _forward = transform.forward;
+
+        // RPC実装の補足
+        if (_messages == null)
+            _messages = FindAnyObjectByType<TMP_Text>();
     }
     public override void Render()
     {
@@ -39,6 +46,13 @@ public class Player : NetworkBehaviour
             }
         }
         _material.color = Color.Lerp(_material.color, Color.blue, Time.deltaTime);
+    }
+    private void Update()
+    {
+        if (Object.HasInputAuthority && Input.GetKeyDown(KeyCode.R))
+        {
+            RPC_SendMessage("Hey Mate!");
+        }
     }
 
 
@@ -86,5 +100,26 @@ public class Player : NetworkBehaviour
 
             }
         }
+    }
+    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsHostPlayer)]
+    public void RPC_SendMessage(string message, RpcInfo info = default)
+    {
+        RPC_RelayMessage(message, info.Source);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All, HostMode = RpcHostMode.SourceIsServer)]
+    public void RPC_RelayMessage(string message, PlayerRef messageSource)
+    {
+
+        if (messageSource == Runner.LocalPlayer)
+        {
+            message = $"You said: {message}\n";
+        }
+        else
+        {
+            message = $"Some other player said: {message}\n";
+        }
+
+        _messages.text += message;
     }
 }
